@@ -19,7 +19,7 @@ def handleServerMsg(server, serverMsg):
     msg = ""
     command = ""
     while True:
-        msg += server.recv(10).decode("UTF-8")
+        msg += server.recv(1024).decode("UTF-8")
         command = msg.split("\n")
         while (len(command) > 1):
             readyMsg = command[0]
@@ -28,11 +28,11 @@ def handleServerMsg(server, serverMsg):
             command = msg.split("\n")
 
 class LightsaberView (Scene):
+    
     def setup(self):
         # Set up scene
         self.background_color = "#111111"
         self.counter = 0
-
         # Create x/y/z position labels
         self.x_pos = LabelNode('0', ('Futura', 40), parent = self)
         self.y_pos = LabelNode('0', ('Futura', 40), parent = self)
@@ -43,7 +43,6 @@ class LightsaberView (Scene):
         self.x_pos.z_position = 1
         self.y_pos.z_position = 1
         self.z_pos.z_position = 1
-
         sendMsg("connect('phone')\n")
 
     def update(self):
