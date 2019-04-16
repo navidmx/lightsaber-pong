@@ -1,0 +1,66 @@
+15-112 Term Project
+Navid Mamoon
+
+##############################
+PROJECT DESCRIPTION
+##############################
+
+Name:
+Lightsaber Pong
+
+Description:
+A game that sends your phone's gyroscope data to your computer, in which you can play a version of "pong" by reflecting lasers against an AI or potentially another player.
+
+##############################
+COMPETITIVE ANALYSIS
+##############################
+
+Back in December 2015, Google launched an "Experiment with Google" called "Lightsaber Escape" that created a similar immersive experience by allowing you to use your phone's motion controls to reflect onto an online lightsaber.
+
+However, this platform no longer exists, immediately creating a space in the market for the re-creation of this once popular application. Furthermore, it was built to be completely online, whereas the version I'm building using sockets will have the ability to be downloaded and played purely offline. Finally, Google never provided a multiplayer function, which could be built into this re-creation.
+
+##############################
+STRUCTURAL PLAN
+##############################
+
+The two primary files will be "lightsaber_screen.py" and "lightsaber_mobile.py".
+
+The latter (mobile view) must be run on a mobile device, and will connect to the socket opened by the former's server (screen).
+
+Any other files necessary will be for the graphics – this can include classes for the Lightsaber, potential .egg model files for 3D rendering, etc.
+
+##############################
+ALGORITHMIC PLAN
+##############################
+
+The trickiest part of this project is the socket connection between the mobile device and computer. As of now, I will navigate this by having the client on a computer/TV screen also be hosting the server. Multiple phones can connect to this one client on the screen. 
+
+Later, a multi-threaded approach could allow a server to be run on a public network (like CMU's wifi), and then allow any device to connect to that single host. This way, multiple screens could display the game.
+
+##############################
+TIMELINE PLAN
+##############################
+
+Apr 16 – Have successful single-thread sockets connection
+Apr 19 – Finish sockets connection, with potential multi-threading and hosting
+Apr 21 – Finalize geometry in tkinter, explore whether Panda3D is possible
+Apr 22 – If Panda3D successful, create Blender model for lightsaber
+Apr 24 – Finish MVP (lasers incoming, collision reflects them)
+Apr 28 – Attempt to add AI
+Apr 30 – Attempt to add second player
+May 02 – Submit final project
+
+##############################
+VERSION CONTROL PLAN
+##############################
+
+For version control, I will be using GitHub and storing my files in a private repository. This will allow me to revert back to specific files as need be or restore work on a new device should my local computer die.
+
+##############################
+MODULE LIST
+##############################
+
+- Sockets
+- Tkinter
+- Potential: Panda3D
+
