@@ -7,11 +7,14 @@ from laser import Laser
 
 hostname = socket.gethostname()
 HOST = socket.gethostbyname(hostname)
-PORT = 15156
+PORT = 15150
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM) 
 server.bind((HOST,PORT))
 server.listen(2) # Accept max two connections (each player)
+
+BLUE = '#00BFFF'
+RED = '#F32929'
 
 print("-- Hosting game on " + HOST + ":" + str(PORT) + " --")
 
@@ -95,12 +98,12 @@ threading.Thread(target=acceptConnections).start()
 from tkinter import *
 
 def init(data):
-    data.p1 = Lightsaber()
+    data.p1 = Lightsaber(BLUE, 0)
+    data.p2 = Lightsaber(RED, -100)
     data.lasers = []
     data.counter = 0
 
 def configure(event, data):
-    print(event)
     data.width = event.width
     data.height = event.height
 
@@ -133,7 +136,8 @@ def drawScene(c, data):
 
 def redrawAll(canvas, data):
     global x, y, z
-    cx, cy = data.width / 2, data.height * 0.75 # origin
+    p1x, p1y = data.width / 2, data.height * 0.75 # origin for player 1
+    p2x, p2y = data.width / 2, data.height * 0.5 # origin for player 1
 
     # Draw background
     canvas.create_rectangle(0, 0, data.width, data.height, fill='black')
@@ -141,10 +145,11 @@ def redrawAll(canvas, data):
 
     # Draw lasers
     # for laser in data.lasers:
-    #     laser.draw(canvas, cx, cy)
+    #     laser.draw(canvas, p1x, p1y)
 
     # Draw lightsaber
-    data.p1.draw(canvas, x, y, z, cx, cy)
+    data.p1.draw(canvas, x, y, z, p1x, p1y)
+    # data.p2.draw(canvas, x, y, z, p2x, p2y)
 
     # Draw angles from phone (for debugging)
     canvas.create_text(data.width - 40, 20,

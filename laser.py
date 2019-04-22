@@ -1,5 +1,4 @@
 import numpy as np
-import math
 from matrix import CustomEngine
 
 class Laser(CustomEngine):

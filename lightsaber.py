@@ -5,45 +5,62 @@ from matrix import CustomEngine
 
 GRAY = '#A9A9A9'
 DARK_GRAY = '#696969'
-BLUE = '#00BFFF'
 
 class Lightsaber(CustomEngine):
-    def __init__(self):
-        self.epsilon = lambda d: d * 1
+    def __init__(self, color, z):
+        super().__init__()
+        self.color = color
+        self.z = z # z-axis offset of lightsaber
         # Node connections to draw rectangles
 
     def draw(self, canvas, x, y, z, cx, cy):
-        self.ax = math.radians(z)
-        self.ay = math.radians(y)
-        self.az = math.radians(x)
-        self.cx, self.cy = cx, cy
+        # Convert angles to radians, and flip X/Z axes
+        ax, ay, az = math.radians(z), math.radians(y), math.radians(x)
 
         # Coordinates for lightsaber blade, automatically transposed/translated
-        self.lightsaber = np.transpose([[-10, -50, -10], [-10, -300, -10],
-                                        [-10, -50,  10], [-10, -300,  10],
-                                        [ 10, -50, -10], [ 10, -300, -10],
-                                        [ 10, -50,  10], [ 10, -300,  10]])
-        self.lightsaber = self.rotateShape(self.lightsaber)
-        self.drawFaces(canvas, self.lightsaber, BLUE, "white", cx, cy)
+        self.lightsaber = np.transpose(
+                            [[-10, -50, self.z-10], [-10, -300, self.z-10],
+                             [-10, -50, self.z+10], [-10, -300, self.z+10],
+                             [ 10, -50, self.z-10], [ 10, -300, self.z-10],
+                             [ 10, -50, self.z+10], [ 10, -300, self.z+10]]
+                          )
 
         # Coordinates for lightsaber handle, automatically transposed
-        self.handle = np.transpose([[-10, -50, -10], [-10, 50, -10],
-                                    [-10, -50,  10], [-10, 50,  10],
-                                    [ 10, -50, -10], [ 10, 50, -10],
-                                    [ 10, -50,  10], [ 10, 50,  10]])
-        self.handle = self.rotateShape(self.handle)
-        self.drawFaces(canvas, self.handle, GRAY, DARK_GRAY, cx, cy)
+        self.handle = np.transpose(
+                            [[-10, -50, self.z-10], [-10, 50, self.z-10],
+                             [-10, -50, self.z+10], [-10, 50, self.z+10],
+                             [ 10, -50, self.z-10], [ 10, 50, self.z-10],
+                             [ 10, -50, self.z+10], [ 10, 50, self.z+10]]
+                      )
 
         # Coordinates for lightsaber handle, automatically transposed
-        self.hilt = np.transpose([[-12, 50, -12], [-15, 60, -12],
-                                  [-12, 50,  12], [-15, 60,  12],
-                                  [ 12, 50, -12], [ 15, 60, -12],
-                                  [ 12, 50,  12], [ 15, 60,  12]])
-        self.hilt = self.rotateShape(self.hilt)
-        self.drawFaces(canvas, self.hilt, DARK_GRAY, "black", cx, cy)
+        self.hilt = np.transpose(
+                        [[-12, 50, self.z-12], [-15, 60, self.z-12],
+                         [-12, 50, self.z+12], [-15, 60, self.z+12],
+                         [ 12, 50, self.z-12], [ 15, 60, self.z-12],
+                         [ 12, 50, self.z+12], [ 15, 60, self.z+12]]
+                    )
 
-    def rotateShape(self, shape):
-        shape = self.rotateX(self.epsilon(self.ax), shape)
-        shape = self.rotateY(self.epsilon(self.ay), shape)
-        shape = self.rotateZ(self.epsilon(self.az), shape)
-        return shape
+        # Get the 2D coordinates necessary to draw each 3D model
+        models = []
+        models.append(self.getFaceCoords(self.lightsaber, cx, cy, ax, ay, az))
+        models.append(self.getFaceCoords(self.handle, cx, cy, ax, ay, az))
+        models.append(self.getFaceCoords(self.hilt, cx, cy, ax, ay, az))
+        # Sort by z-index
+        models.sort(key = lambda tup: tup[1])
+
+        # Draw models in order
+        for model in models:
+            shape = model[0]
+            if (shape == self.lightsaber).all():
+                self.drawShape(canvas, model[1], self.color, "white")
+            elif (shape == self.handle).all():
+                self.drawShape(canvas, model[1], GRAY, DARK_GRAY)
+            elif (shape == self.hilt).all():
+                self.drawShape(canvas, model[1], DARK_GRAY, "black")
+    
+    # Draw each shape given correct faces
+    def drawShape(self, canvas, faces, fill, outline):
+        for f in faces:
+            canvas.create_polygon(f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7],
+                                  fill = fill, outline = outline)
