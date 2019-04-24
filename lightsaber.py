@@ -5,7 +5,7 @@ GRAY = '#A9A9A9'
 DARK_GRAY = '#696969'
 
 class Lightsaber(CustomEngine):
-    def __init__(self, color, z, scale):
+    def __init__(self, color):
         super().__init__()
         self.z = 0
         self.color = color
@@ -32,17 +32,25 @@ class Lightsaber(CustomEngine):
                       )
         # 3D coordinates for lightsaber hilt
         self.hilt = np.transpose(
-                        [[-(w+2), h, self.z-(w+2)], [-(w+3), (h+10), self.z-(w+2)],
-                         [-(w+2), h, self.z+(w+2)], [-(w+3), (h+10), self.z+(w+2)],
-                         [ (w+2), h, self.z-(w+2)], [ (w+3), (h+10), self.z-(w+2)],
-                         [ (w+2), h, self.z+(w+2)], [ (w+3), (h+10), self.z+(w+2)]]
+                        [[-(w+2), h, self.z-(w+2)], [-(w+3), (h+10),
+                          self.z-(w+2)],
+                         [-(w+2), h, self.z+(w+2)], [-(w+3), (h+10),
+                           self.z+(w+2)],
+                         [ (w+2), h, self.z-(w+2)], [ (w+3), (h+10),
+                           self.z-(w+2)],
+                         [ (w+2), h, self.z+(w+2)], [ (w+3), (h+10),
+                           self.z+(w+2)]]
                     )
         # 3D coordinates for lightsaber mod1
         self.mod1 = np.transpose(
-                            [[-w, -h, self.z-(w+2)], [-w, -h-5, self.z-(w+2)],
-                             [-w, -h, self.z+(w+2)], [-w, -h-5, self.z+(w+2)],
-                             [ w, -h, self.z-(w+2)], [ w, -h-5, self.z-(w+2)],
-                             [ w, -h, self.z+(w+2)], [ w, -h-5, self.z+(w+2)]]
+                            [[-(w+2), -h, self.z-(w+2)], [-(w+2), -h-5,
+                              self.z-(w+2)],
+                             [-(w+2), -h, self.z+(w+2)], [-(w+2), -h-5,
+                               self.z+(w+2)],
+                             [ (w+2), -h, self.z-(w+2)], [ (w+2), -h-5,
+                               self.z-(w+2)],
+                             [ (w+2), -h, self.z+(w+2)], [ (w+2), -h-5,
+                               self.z+(w+2)]]
                     )
 
         # Get 2D coordinates necessary to draw each 3D model

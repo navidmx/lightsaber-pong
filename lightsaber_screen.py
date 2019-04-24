@@ -1,12 +1,14 @@
 import socket
 import random
 import threading
+import math
+import copy
 from queue import Queue
 from lightsaber import Lightsaber
 from laser import Laser
 
 HOST = socket.gethostbyname(socket.gethostname())
-PORT = 15265
+PORT = 15277
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM) 
 server.bind((HOST,PORT))
@@ -14,6 +16,9 @@ server.listen(2) # Accept max two connections (each player)
 
 BLUE = '#00BFFF'
 RED  = '#F32929'
+
+X_OFFSET = 0.40
+Y_OFFSET = 0.60
 
 print("-- Hosting game on %s:%d --" % (HOST, PORT))
 
@@ -104,16 +109,19 @@ from tkinter import *
 
 def init(data):
     # Initialize player 1
-    data.p1['model'] = Lightsaber(BLUE, 0, 1)
-    data.p1['cx'] = data.width * 0.50
-    data.p1['cy'] = data.height * 0.75
+    data.p1['model'] = Lightsaber(BLUE)
+    data.p1['score'] = 0
+    data.p1['cx'], data.p1['cy'] = data.width * 0.50, data.height * 0.75
+
     # Initialize player 2
-    data.p2['model'] = Lightsaber(RED, 0, 0.4)
-    data.p2['cx'] = data.width * 0.50
-    data.p2['cy'] = data.height * 0.55
+    data.p2['model'] = Lightsaber(RED)
+    data.p2['score'] = 0
+    data.p2['cx'], data.p2['cy'] = data.width * 0.50, data.height * 0.55
+
     # Store in-game lasers
     data.lasers = []
     data.counter = 0
+
     # Switch for whether screen 2 opened
     data.p2['opened'] = False
 
@@ -127,29 +135,50 @@ def mousePressed(event, data): pass
 def keyPressed(event, data): pass
 
 def timerFired(data):
-    data.counter += 1
-    if data.counter % 20 == 0:
-        # Create new laser at random x/y with random speed
-        data.lasers.append(Laser(-20, 50, 200))
-    for laser in data.lasers:
-        laser.move()
+    if data.p1['online']:
+        data.counter += 1
+        if data.counter % 20 == 0:
+            # Create new laser
+            data.lasers.append(Laser(data.width, X_OFFSET, data.height * 0.2,
+                            data.height * 0.4))
+        for laser in data.lasers:
+            laser.move()
+
+def checkCollisions(data, player):
+    lasers = copy.deepcopy(data.lasers)
+    keepLasers = []
+    for i in range(len(lasers)):
+        angle = math.cos(math.radians(player['x'] + 90))
+        botY = lasers[i].points[2][1]
+        medX = ((lasers[i].points[2][0] + lasers[i].points[3][0]) / 2) - \
+               data.width / 2
+        # Area for collision
+        if data.height * 0.5 < botY < data.height * 0.6:
+            collided = angle / medX > 0
+            if collided:
+                lasers[i].speed = -lasers[i].speed
+                player['score'] += 1
+        width = abs(lasers[i].points[3][0] - lasers[i].points[2][0])
+        print(i, width)
+        if botY <= data.height * 0.6 and width > 10:
+            keepLasers.append(lasers[i])
+        else:
+            player['score'] -= 1
+    data.lasers = keepLasers
 
 def drawScene(canvas, data):
-    # Window offset to draw perspective map
-    x_offset = 0.40
-    y_offset = 0.60
     # Color of perspective lines
     color = '#696969'
-    canvas.create_line(0, data.height, data.width * x_offset,
-                  data.height * y_offset, fill=color)
-    canvas.create_line(data.width, data.height, data.width * y_offset,
-                  data.height * y_offset, fill=color)
-    canvas.create_line(data.width * x_offset, 0, data.width * x_offset,
-                  data.height * y_offset, fill=color)
-    canvas.create_line(data.width * y_offset, 0, data.width * y_offset,
-                  data.height * y_offset, fill=color)
-    canvas.create_line(data.width * x_offset, data.height * y_offset,
-                  data.width * y_offset, data.height * y_offset, fill=color)
+    canvas.create_line(0, data.height, data.width * X_OFFSET,
+                  data.height * Y_OFFSET, fill=color)
+    canvas.create_line(data.width, data.height, data.width * Y_OFFSET,
+                  data.height * Y_OFFSET, fill=color)
+    canvas.create_line(data.width * X_OFFSET, 0, data.width * X_OFFSET,
+                  data.height * Y_OFFSET, fill=color)
+    canvas.create_line(data.width * Y_OFFSET, 0, data.width * Y_OFFSET,
+                  data.height * Y_OFFSET, fill=color)
+    canvas.create_line(data.width * X_OFFSET, data.height * Y_OFFSET,
+                  data.width * Y_OFFSET, data.height * Y_OFFSET, fill=color)
 
 def drawText(canvas, data, player = None):
     if player == None:
@@ -163,17 +192,19 @@ def drawText(canvas, data, player = None):
         canvas.create_text(data.width / 2, 10, text="%s:%d" % (HOST, PORT),
                         fill="gray", font=('Helvetica', 16))
         # Draw angles from phone (for debugging)
-        x, y, z = player['x'], player['y'], player['z']
+        x, y, z, score = player['x'], player['y'], player['z'], player['score']
         canvas.create_text(data.width-40, 20, text="X: %0.2f" % x, fill="white")
         canvas.create_text(data.width-40, 40, text="Y: %0.2f" % y, fill="white")
         canvas.create_text(data.width-40, 60, text="Z: %0.2f" % z, fill="white")
+        canvas.create_text(40, 40, text="Score: %d" % score, fill="white")
 
 def simulatePlayer(data, player):
     global playerNum
     player['online'] = True
-    player['x'], player['y'], player['z'] = random.randint(-45, 45), 0, \
-                                            random.randint(-45, 45)
-    if playerNum == 1: playerNum = 2
+    player['x'], player['y'], player['z'] = 0, 0, 0
+    player['x'] += random.randint(-20, 20)
+    player['z'] += random.randint(-20, 20)
+    playerNum = 2
 
 def redrawAll(canvas, data):
     # Window-responsive origins for player 1 and player 2
@@ -184,30 +215,33 @@ def redrawAll(canvas, data):
     canvas.create_rectangle(0, 0, data.width, data.height, fill='black')
 
     # Draw lasers
-    # for laser in data.lasers:
-    #     laser.draw(canvas, data.p1['cx'], data.p1['cy'])
+    for laser in data.lasers:
+        laser.draw(canvas)
 
-    simulatePlayer(data, data.p2)
+    simulatePlayer(data, data.p1)
+    # simulatePlayer(data, data.p2)
 
     # Draw models if player 1 online
     if data.p1['online']:
         # Draw perspective scene and game text
         drawScene(canvas, data)
         drawText(canvas, data, data.p1)
-
         if data.p2['online']:
             # Open second window
             if not data.p2['opened']:
                 runPlayerTwo(600, 450)
                 data.p2['opened'] = True
+            checkCollisions(data, data.p2)
             # Draw player 2 lightsaber (if online)
             data.p2['model'].draw(canvas, data.p2['x'], data.p2['y'],
                                   data.p2['z'], c2x, c2y, 0.5)
 
+        checkCollisions(data, data.p1)
         # Draw player 1 lightsaber
         data.p1['model'].draw(canvas, data.p1['x'], data.p1['y'], data.p1['z'],
                               c1x, c1y, 1)
     else:
+        # Draw join game text
         drawText(canvas, data)
 
 def redrawAllTwo(canvas, data, dim):
@@ -231,19 +265,16 @@ def redrawAllTwo(canvas, data, dim):
 
     drawText(canvas, dim, data.p2)
 
+# NOTE:
+# run() functions primarily from 15-112 starter code, with several changes
+# to account for sockets and multiple screens (using toplevel)
+# Starter code: https://www.cs.cmu.edu/~112/notes/notes-animations-part2.html
+
 def runPlayerOne(width, height, serverMsg=None, server=None):
     def redrawAllWrapper(canvas, data):
         canvas.delete(ALL)
         redrawAll(canvas, data)
         canvas.update()
-
-    def mousePressedWrapper(event, canvas, data):
-        mousePressed(event, data)
-        redrawAllWrapper(canvas, data)
-
-    def keyPressedWrapper(event, canvas, data):
-        keyPressed(event, data)
-        redrawAllWrapper(canvas, data)
 
     def timerFiredWrapper(canvas, data):
         timerFired(data)
@@ -269,16 +300,13 @@ def runPlayerOne(width, height, serverMsg=None, server=None):
     canvas.pack(fill=BOTH, expand=1)
     canvas.bind("<Configure>", lambda event:
                                configureWrapper(event, canvas, data))
-    root.bind("<Button-1>", lambda event:
-                            mousePressedWrapper(event, canvas, data))
-    root.bind("<Key>", lambda event: keyPressedWrapper(event, canvas, data))
     timerFiredWrapper(canvas, data)
     root.mainloop()
     print("-- Player 1 closed --")
 
 def runPlayerTwo(width, height):
     # Create second window with a second data set that only stores instance
-    # important variables (like the different window size)
+    # important variables (like the different window size) called "dim"
     dim = Struct()
     dim.width = width
     dim.height = height

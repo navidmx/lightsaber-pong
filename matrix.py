@@ -38,6 +38,7 @@ class CustomEngine(object):
         return x + cx, y + cy
 
     # Rotate shape in all 3 dimensions given x/y/z rotations
+    # Matrices found here: https://en.wikipedia.org/wiki/Rotation_matrix
     def rotateShape(self, shape, x, y, z):
         # Rotation matrices for all 3 axes
         rotX = np.asarray([[1, 0, 0],
