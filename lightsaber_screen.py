@@ -106,14 +106,16 @@ threading.Thread(target=acceptConnections).start()
 titleImg = ""
 
 def init(data):
-    gameTime = 5 # seconds
+    gameTime = 20 # seconds
     # Initialize player 1
     data.p1['model'] = Lightsaber(BLUE)
     data.p1['score'], data.p1['time'] = 0, gameTime
+    data.p1['cx'], data.p1['cy'] = data.width * 0.50, data.height * 0.75
+
+    # Load saved high score for training mode
     hiscore = open('hiscore.txt', 'r')
     data.p1['hiscore'] = int(hiscore.read())
     hiscore.close()
-    data.p1['cx'], data.p1['cy'] = data.width * 0.50, data.height * 0.75
 
     # Initialize player 2
     data.p2['model'] = Lightsaber(RED)
@@ -139,6 +141,8 @@ def mousePressed(event, data):
         elif data.box2X1 < event.x < data.box2X2 and \
             data.boxY1 < event.y < data.boxY2 and data.p1['online']:
             data.p2['ai'] = True
+            data.p2['aiLasers'] = []
+            data.p2['aiSteps'] = []
             startGame(data, "AI")
         # Mode: 2-Player
         elif data.box3X1 < event.x < data.box3X2 and \
@@ -157,35 +161,59 @@ def startGame(data, mode):
     elif mode == "2-Player":
         runPlayerTwo(800, 600)
 
-def timerFired(data, dim = None):
+def timerFired(data):
     if data.gameStarted:
         data.counter += 1
         if data.counter % 20 == 0:
-            # Create new laser
-            data.p1['lasers'].append(Laser(data.width, X_OFFSET,
+            data.p1['lasers'].append(Laser(data.width, data.height, X_OFFSET,
                                      data.height * 0.2, data.height * 0.4))
-            if data.p2['online'] and dim != None:
-                data.p2['lasers'].append(Laser(dim.width, X_OFFSET,
-                                        dim.height * 0.2, dim.height * 0.4))
         for laser in data.p1['lasers']:
             laser.move()
         if data.counter % 10 == 0:
             data.p1['time'] -= 1
-            if data.p2['online']: data.p2['time'] -= 1
         checkCollisions(data, data.p1)
-        if data.p2['online']:
-            for laser in data.p2['lasers']:
-                laser.move()
-            checkCollisions(data, data.p2)
-            if data.p2['ai']:
-                runAI(data)
         if data.p1['time'] == 0:
             data.gameStarted = False
             data.gameOver = True
 
-def runAI(data):
-    data.p2['x'] += random.randint(-20, 20)
-    data.p2['z'] += random.randint(-20, 20)
+def timerFiredTwo(data, dim):
+    if data.gameStarted:
+        if data.counter % 20 == 0:
+            data.p2['lasers'].append(Laser(dim.width, dim.height, X_OFFSET,
+                                     dim.height * 0.2, dim.height * 0.4))
+            if data.p2['ai']:
+                addNewSteps(data, data.p2['lasers'][len(data.p2['lasers']) - 1])
+        for laser in data.p2['lasers']:
+            laser.move()
+        if data.counter % 10 == 0:
+            data.p2['time'] -= 1
+        checkCollisions(dim, data.p2)
+        if data.p2['ai']:
+            runAI(data, dim)
+
+def addNewSteps(data, laser):
+    pass
+    # print(laser)
+
+def runAI(data, dim):
+    pass
+    # lasers = copy.deepcopy(data.p2['lasers'])
+    # for i in range(len(lasers)):
+    #     if lasers[i] not in data.p2['aiLasers']:
+    #         botY = lasers[i].points[2][1]
+    #         medX = lasers[i].getFinalPos()
+    #         currAngle = math.cos(math.radians(data.p2['x'] + 90))
+    #         finalAngle = 90
+    #         for decAngle in range(0, 18000, 1):
+    #             angle = decAngle / 100
+    #             if (10 < angle < 85) or (95 < angle < 170):
+    #                 correctAngles = []
+    #                 if math.cos(math.radians(angle)) / medX > 0:
+    #                     correctAngles.append(angle)
+    #                 if len(correctAngles) > 0:
+    #                     finalAngle = max(correctAngles)
+    #         data.p2['x'] = finalAngle - 90
+    #         data.p2['aiLasers'].append(lasers[i])
 
 def checkCollisions(data, player):
     lasers = copy.deepcopy(player['lasers'])
@@ -197,35 +225,45 @@ def checkCollisions(data, player):
                data.width / 2
         # Area for collision
         if data.height * 0.5 < botY < data.height * 0.6:
-            collided = angle / medX > 0
-            if collided:
-                lasers[i].speed = -lasers[i].speed
-                player['score'] += 1
+            if medX != 0:
+                collided = angle / medX > 0
+                if collided:
+                    lasers[i].speed = -lasers[i].speed
+                    player['score'] += 1
         width = abs(lasers[i].points[3][0] - lasers[i].points[2][0])
         if botY <= data.height * 0.75 and width > 10:
             keepLasers.append(lasers[i])
-        else:
-            player['score'] -= 1
     player['lasers'] = keepLasers
 
 def playFile(audioFile):
     # Play file using PyAudio
-    wf = wave.open(audioFile, 'rb')
+    wav = wave.open(audioFile, 'rb')
     p = pyaudio.PyAudio()
-
     # Create a stream with pyAudio settings
-    stream = p.open(format = p.get_format_from_width(wf.getsampwidth()),
-                    channels = wf.getnchannels(), rate = wf.getframerate(),
+    stream = p.open(format = p.get_format_from_width(wav.getsampwidth()),
+                    channels = wav.getnchannels(), rate = wav.getframerate(),
                     output = True)
-
     # Play stream from beginning to end
-    data = wf.readframes(1024)
-    while data != '':
-        stream.write(data)
-        data = wf.readframes(1024)
-
+    audio = wav.readframes(1024)
+    while audio != '':
+        stream.write(audio)
+        audio = wav.readframes(1024)
+    # Close stream
     stream.close()
     p.terminate() 
+
+def roundRectangle(canvas, x1, y1, x2, y2, r, **kwargs):
+    points = [x1+r, y1, x1+r, y1,
+              x2-r, y1, x2-r, y1,
+              x2, y1, x2, y1+r,
+              x2, y1+r, x2, y2-r,
+              x2, y2-r, x2, y2,
+              x2-r, y2, x2-r, y2,
+              x1+r, y2, x1+r, y2,
+              x1, y2, x1, y2-r,
+              x1, y2-r, x1, y1+r,
+              x1, y1+r, x1, y1]
+    return canvas.create_polygon(points, **kwargs, smooth=True)
 
 def drawScene(canvas, data):
     # Color of perspective lines
@@ -292,10 +330,10 @@ def drawHomeScreen(canvas, data):
     pY1, pY2 = data.height * 0.4, data.height * 0.5
     p1X1, p1X2 = data.width * 0.1, data.width * 0.48
     p2X1, p2X2 = data.width * 0.52, data.width * 0.9
-    canvas.create_rectangle(p1X1, pY1, p1X2, pY2, outline=borderP1)
+    roundRectangle(canvas, p1X1, pY1, p1X2, pY2, 20, outline=borderP1)
     canvas.create_text((p1X1 + p1X2)/2, (pY1 + pY2)/2, text=p1Text,
         fill=borderP1, font=('Helvetica', 22, 'bold'))
-    canvas.create_rectangle(p2X1, pY1, p2X2, pY2, outline=borderP2)
+    roundRectangle(canvas, p2X1, pY1, p2X2, pY2, 20, outline=borderP2)
     canvas.create_text((p2X1 + p2X2)/2, (pY1 + pY2)/2, text=p2Text,
         fill=borderP2, font=('Helvetica', 22, 'bold'))
     # Mode boxes
@@ -303,12 +341,12 @@ def drawHomeScreen(canvas, data):
     data.box1X1, data.box1X2 = data.width * 0.1, data.width * 0.34
     data.box2X1, data.box2X2 = data.width * 0.38, data.width * 0.62
     data.box3X1, data.box3X2 = data.width * 0.66, data.width * 0.9
-    canvas.create_rectangle(data.box1X1, data.boxY1, data.box1X2, data.boxY2,
-                            outline=modeTrain)
-    canvas.create_rectangle(data.box2X1, data.boxY1, data.box2X2, data.boxY2,
-                            outline=modeAI)
-    canvas.create_rectangle(data.box3X1, data.boxY1, data.box3X2, data.boxY2,
-                            outline=modeCompete)
+    roundRectangle(canvas, data.box1X1, data.boxY1, data.box1X2, data.boxY2,
+                            20, outline=modeTrain)
+    roundRectangle(canvas, data.box2X1, data.boxY1, data.box2X2, data.boxY2,
+                            20, outline=modeAI)
+    roundRectangle(canvas, data.box3X1, data.boxY1, data.box3X2, data.boxY2,
+                            20, outline=modeCompete)
     # Mode titles
     canvas.create_text((data.box1X1 + data.box1X2)/2, data.boxY2 - 80,
         text="TRAIN", fill=modeTrain, font=('Helvetica', 22, 'bold'))
@@ -334,8 +372,11 @@ def drawGameOver(canvas, data):
             hiscore = open('hiscore.txt', 'w')
             hiscore.write(str(data.p1['score']))
             hiscore.close()
-        canvas.create_text(w / 2, h / 2 - 25, text="SCORE",
-            fill=GRAY, font=('Helvetica', 22, 'bold'))
+            canvas.create_text(w / 2, h / 2 - 25, text="HI SCORE!",
+                fill=BLUE, font=('Helvetica', 22, 'bold'))
+        else:
+            canvas.create_text(w / 2, h / 2 - 25, text="SCORE",
+                fill=GRAY, font=('Helvetica', 22, 'bold'))
         canvas.create_text(w / 2, h / 2 + 25, text=data.p1['score'],
             fill="white", font=('Helvetica', 72, 'bold'))
     else:
@@ -360,7 +401,7 @@ def simulatePlayer(player, difficulty):
     player['x'], player['y'], player['z'] = 0, 0, 0
     player['x'] += random.randint(-20, 20)
     player['z'] += random.randint(-20, 20)
-    playerNum = 2
+    playerNum = 1
 
 def redrawAll(canvas, data):
     # Window-responsive origins for player 1 and player 2
@@ -371,7 +412,6 @@ def redrawAll(canvas, data):
     canvas.create_rectangle(0, 0, data.width, data.height, fill='black')
 
     simulatePlayer(data.p1, 0)
-    simulatePlayer(data.p2, 0)
 
     if not data.gameStarted:
         drawSplash(canvas, data)
@@ -474,7 +514,7 @@ def runPlayerTwo(width, height):
         redrawAllWrapper(canvas, data, dim)
 
     def timerFiredWrapper(canvas, data, dim):
-        timerFired(data, dim)
+        timerFiredTwo(data, dim)
         redrawAllWrapper(canvas, data, dim)
         canvas.after(data.timerDelay, timerFiredWrapper, canvas, data, dim)
 
