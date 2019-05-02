@@ -5,7 +5,7 @@ from lightsaber import Lightsaber
 from laser import Laser
 
 HOST = socket.gethostbyname(socket.gethostname())
-PORT = 15271
+PORT = 15270
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM) 
 server.bind((HOST,PORT))
@@ -411,7 +411,7 @@ def redrawAll(canvas, data):
     # Draw background
     canvas.create_rectangle(0, 0, data.width, data.height, fill='black')
 
-    simulatePlayer(data.p1, 0)
+    # simulatePlayer(data.p1, 0)
 
     if not data.gameStarted:
         drawSplash(canvas, data)
