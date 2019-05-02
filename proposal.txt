@@ -62,5 +62,10 @@ MODULE LIST
 
 - Sockets
 - Tkinter
-- Potential: Panda3D
+
+##############################
+TP 2 UPDATE
+##############################
+
+No significant design changes made, kept closely to the outline from TP 1. Added Numpy as a module to perform matrix operations.
 

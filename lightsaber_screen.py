@@ -1,24 +1,21 @@
-import socket
-import random
-import threading
-import math
-import copy
+import socket, random, threading, math, copy, pyaudio, wave
+from tkinter import *
 from queue import Queue
 from lightsaber import Lightsaber
 from laser import Laser
 
 HOST = socket.gethostbyname(socket.gethostname())
-PORT = 15277
+PORT = 15271
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM) 
 server.bind((HOST,PORT))
 server.listen(2) # Accept max two connections (each player)
 
+# Create constants (colors, and screen offset)
 BLUE = '#00BFFF'
 RED  = '#F32929'
-
-X_OFFSET = 0.40
-Y_OFFSET = 0.60
+GRAY = '#808080'
+X_OFFSET, Y_OFFSET = 0.40, 0.60
 
 print("-- Hosting game on %s:%d --" % (HOST, PORT))
 
@@ -27,6 +24,7 @@ data = Struct()
 
 # Store data for both players
 data.p1, data.p2 = { 'online' : False }, { 'online' : False }
+data.gameStarted, data.gameOver = False, False
 
 clientele     = dict()
 serverChannel = Queue(100)
@@ -101,51 +99,96 @@ def acceptConnections():
 threading.Thread(target=serverThread, args=(clientele, serverChannel)).start()
 threading.Thread(target=acceptConnections).start()
 
-##################
-#    Graphics    #
-##################
+##########################
+#####    Graphics    #####
+##########################
 
-from tkinter import *
+titleImg = ""
 
 def init(data):
+    gameTime = 5 # seconds
     # Initialize player 1
     data.p1['model'] = Lightsaber(BLUE)
-    data.p1['score'] = 0
+    data.p1['score'], data.p1['time'] = 0, gameTime
+    hiscore = open('hiscore.txt', 'r')
+    data.p1['hiscore'] = int(hiscore.read())
+    hiscore.close()
     data.p1['cx'], data.p1['cy'] = data.width * 0.50, data.height * 0.75
 
     # Initialize player 2
     data.p2['model'] = Lightsaber(RED)
-    data.p2['score'] = 0
+    data.p2['score'], data.p2['time'] = 0, gameTime
     data.p2['cx'], data.p2['cy'] = data.width * 0.50, data.height * 0.55
 
     # Store in-game lasers
-    data.lasers = []
+    data.p1['lasers'], data.p2['lasers'] = [], []
     data.counter = 0
 
-    # Switch for whether screen 2 opened
-    data.p2['opened'] = False
-
-# Check window re-sizing (player 1)
 def configure(event, data):
+    # Check window re-sizing
     data.width = event.width
     data.height = event.height
 
-def mousePressed(event, data): pass
+def mousePressed(event, data):
+    if not data.gameStarted:
+        # Mode: Train
+        if data.box1X1 < event.x < data.box1X2 and \
+            data.boxY1 < event.y < data.boxY2 and data.p1['online']:
+            startGame(data, "Train")
+        # Mode: AI
+        elif data.box2X1 < event.x < data.box2X2 and \
+            data.boxY1 < event.y < data.boxY2 and data.p1['online']:
+            data.p2['ai'] = True
+            startGame(data, "AI")
+        # Mode: 2-Player
+        elif data.box3X1 < event.x < data.box3X2 and \
+            data.boxY1 < event.y < data.boxY2 and data.p2['online']:
+            data.p2['ai'] = False
+            startGame(data, "2-Player")
 
 def keyPressed(event, data): pass
 
-def timerFired(data):
-    if data.p1['online']:
+def startGame(data, mode):
+    data.gameStarted = True
+    if mode == "AI":
+        data.p2['online'] = True
+        data.p2['x'], data.p2['y'], data.p2['z'] = 0, 0, 0
+        runPlayerTwo(600, 450)
+    elif mode == "2-Player":
+        runPlayerTwo(800, 600)
+
+def timerFired(data, dim = None):
+    if data.gameStarted:
         data.counter += 1
         if data.counter % 20 == 0:
             # Create new laser
-            data.lasers.append(Laser(data.width, X_OFFSET, data.height * 0.2,
-                            data.height * 0.4))
-        for laser in data.lasers:
+            data.p1['lasers'].append(Laser(data.width, X_OFFSET,
+                                     data.height * 0.2, data.height * 0.4))
+            if data.p2['online'] and dim != None:
+                data.p2['lasers'].append(Laser(dim.width, X_OFFSET,
+                                        dim.height * 0.2, dim.height * 0.4))
+        for laser in data.p1['lasers']:
             laser.move()
+        if data.counter % 10 == 0:
+            data.p1['time'] -= 1
+            if data.p2['online']: data.p2['time'] -= 1
+        checkCollisions(data, data.p1)
+        if data.p2['online']:
+            for laser in data.p2['lasers']:
+                laser.move()
+            checkCollisions(data, data.p2)
+            if data.p2['ai']:
+                runAI(data)
+        if data.p1['time'] == 0:
+            data.gameStarted = False
+            data.gameOver = True
+
+def runAI(data):
+    data.p2['x'] += random.randint(-20, 20)
+    data.p2['z'] += random.randint(-20, 20)
 
 def checkCollisions(data, player):
-    lasers = copy.deepcopy(data.lasers)
+    lasers = copy.deepcopy(player['lasers'])
     keepLasers = []
     for i in range(len(lasers)):
         angle = math.cos(math.radians(player['x'] + 90))
@@ -159,12 +202,30 @@ def checkCollisions(data, player):
                 lasers[i].speed = -lasers[i].speed
                 player['score'] += 1
         width = abs(lasers[i].points[3][0] - lasers[i].points[2][0])
-        print(i, width)
-        if botY <= data.height * 0.6 and width > 10:
+        if botY <= data.height * 0.75 and width > 10:
             keepLasers.append(lasers[i])
         else:
             player['score'] -= 1
-    data.lasers = keepLasers
+    player['lasers'] = keepLasers
+
+def playFile(audioFile):
+    # Play file using PyAudio
+    wf = wave.open(audioFile, 'rb')
+    p = pyaudio.PyAudio()
+
+    # Create a stream with pyAudio settings
+    stream = p.open(format = p.get_format_from_width(wf.getsampwidth()),
+                    channels = wf.getnchannels(), rate = wf.getframerate(),
+                    output = True)
+
+    # Play stream from beginning to end
+    data = wf.readframes(1024)
+    while data != '':
+        stream.write(data)
+        data = wf.readframes(1024)
+
+    stream.close()
+    p.terminate() 
 
 def drawScene(canvas, data):
     # Color of perspective lines
@@ -181,24 +242,119 @@ def drawScene(canvas, data):
                   data.width * Y_OFFSET, data.height * Y_OFFSET, fill=color)
 
 def drawText(canvas, data, player = None):
-    if player == None:
-        # Draw host and port to join
-        canvas.create_text(data.width/2, data.height/2-15, text="Join game at",
-                           fill="gray", font=('Helvetica', 18))
-        canvas.create_text(data.width/2, data.height/2+15, text="%s:%d" % (HOST,
-                           PORT), fill="white", font=('Helvetica', 36, 'bold'))
+    # Draw host/port if player connected
+    canvas.create_text(data.width / 2, 10, text="%s:%d" % (HOST, PORT),
+                    fill="gray", font=('Helvetica', 16))
+    score, time = player['score'], player['time']
+    if 'hiscore' in player and not data.p2['online']:
+        hiscore = player['hiscore']
+        if hiscore >= score:
+            scoreFill = "white"
+            scoreText = "SCORE"
+            canvas.create_text(60, 80, text="HI SCORE", fill=GRAY, anchor=CENTER, font=('Helvetica', 14, 'bold'))
+            canvas.create_text(60, 105, text=hiscore, fill=BLUE, anchor=CENTER, font=('Helvetica', 32, 'bold'))
+        else:
+            scoreText = "HI SCORE"
+            scoreFill = BLUE
     else:
-        # Draw smaller host/port if player connected
-        canvas.create_text(data.width / 2, 10, text="%s:%d" % (HOST, PORT),
-                        fill="gray", font=('Helvetica', 16))
-        # Draw angles from phone (for debugging)
-        x, y, z, score = player['x'], player['y'], player['z'], player['score']
-        canvas.create_text(data.width-40, 20, text="X: %0.2f" % x, fill="white")
-        canvas.create_text(data.width-40, 40, text="Y: %0.2f" % y, fill="white")
-        canvas.create_text(data.width-40, 60, text="Z: %0.2f" % z, fill="white")
-        canvas.create_text(40, 40, text="Score: %d" % score, fill="white")
+        scoreFill = "white"
+        scoreText = "SCORE"
+    # Draw score
+    canvas.create_text(60, 20, text=scoreText, fill=GRAY, anchor=CENTER, font=('Helvetica', 14, 'bold'))
+    canvas.create_text(60, 45, text=score, fill=scoreFill, anchor=CENTER, font=('Helvetica', 32, 'bold'))
+    # Draw time
+    canvas.create_text(data.width - 60, 20, text="TIME", fill=GRAY, anchor=CENTER, font=('Helvetica', 14, 'bold'))
+    canvas.create_text(data.width - 60, 45, text=time, fill="white", anchor=CENTER, font=('Helvetica', 32, 'bold'))
 
-def simulatePlayer(data, player):
+def drawSplash(canvas, data):
+    global titleImg
+    canvas.create_image(data.width / 2, data.height*0.15, anchor=CENTER,
+                        image = titleImg)
+    if not data.gameOver:
+        drawHomeScreen(canvas, data)
+    else:
+        drawGameOver(canvas, data)
+
+def drawHomeScreen(canvas, data):
+    canvas.create_text(data.width/2, data.height*0.15 + 100, anchor=CENTER,
+        text="%s:%s" % (HOST,PORT), fill=BLUE, font=('Helvetica', 24, 'bold'))
+    # Highlight boxes based on players joined
+    borderP1, borderP2 = GRAY, GRAY
+    p1Text, p2Text = "NOT CONNECTED", "NOT CONNECTED"
+    modeTrain, modeAI, modeCompete = GRAY, GRAY, GRAY
+    if data.p1['online']:
+        borderP1, p1Text = BLUE, "CONNECTED"
+        modeTrain, modeAI = "white", "white"
+        if data.p2['online']:
+            borderP2, p2Text = RED, "CONNECTED"
+            modeCompete = "white"
+    # Player boxes
+    pY1, pY2 = data.height * 0.4, data.height * 0.5
+    p1X1, p1X2 = data.width * 0.1, data.width * 0.48
+    p2X1, p2X2 = data.width * 0.52, data.width * 0.9
+    canvas.create_rectangle(p1X1, pY1, p1X2, pY2, outline=borderP1)
+    canvas.create_text((p1X1 + p1X2)/2, (pY1 + pY2)/2, text=p1Text,
+        fill=borderP1, font=('Helvetica', 22, 'bold'))
+    canvas.create_rectangle(p2X1, pY1, p2X2, pY2, outline=borderP2)
+    canvas.create_text((p2X1 + p2X2)/2, (pY1 + pY2)/2, text=p2Text,
+        fill=borderP2, font=('Helvetica', 22, 'bold'))
+    # Mode boxes
+    data.boxY1, data.boxY2 = data.height * 0.55, data.height * 0.95
+    data.box1X1, data.box1X2 = data.width * 0.1, data.width * 0.34
+    data.box2X1, data.box2X2 = data.width * 0.38, data.width * 0.62
+    data.box3X1, data.box3X2 = data.width * 0.66, data.width * 0.9
+    canvas.create_rectangle(data.box1X1, data.boxY1, data.box1X2, data.boxY2,
+                            outline=modeTrain)
+    canvas.create_rectangle(data.box2X1, data.boxY1, data.box2X2, data.boxY2,
+                            outline=modeAI)
+    canvas.create_rectangle(data.box3X1, data.boxY1, data.box3X2, data.boxY2,
+                            outline=modeCompete)
+    # Mode titles
+    canvas.create_text((data.box1X1 + data.box1X2)/2, data.boxY2 - 80,
+        text="TRAIN", fill=modeTrain, font=('Helvetica', 22, 'bold'))
+    canvas.create_text((data.box2X1 + data.box2X2)/2, data.boxY2 - 80,
+        text="COMPETE (AI)", fill=modeAI, font=('Helvetica', 22, 'bold'))
+    canvas.create_text((data.box3X1 + data.box3X2)/2, data.boxY2 - 80,
+        text="COMPETE", fill=modeCompete, font=('Helvetica', 22, 'bold'))
+    # Mode descriptions
+    canvas.create_text((data.box1X1 + data.box1X2)/2, data.boxY2 - 40,
+        text="Play against the timer and beat\nyour own high score.",
+        fill=modeTrain, font=('Helvetica', 12), justify=CENTER)
+    canvas.create_text((data.box2X1 + data.box2X2)/2, data.boxY2 - 40,
+        text="Play against various difficulty\nAI's and beat them!",
+        fill=modeAI, font=('Helvetica', 12), justify=CENTER)
+    canvas.create_text((data.box3X1 + data.box3X2)/2, data.boxY2 - 40,
+        text="Play against another phone with\nthe same time limit.",
+        fill=modeCompete, font=('Helvetica', 12), justify=CENTER)
+
+def drawGameOver(canvas, data):
+    w, h = data.width, data.height
+    if not data.p2['online']:
+        if data.p1['score'] > data.p1['hiscore']:
+            hiscore = open('hiscore.txt', 'w')
+            hiscore.write(str(data.p1['score']))
+            hiscore.close()
+        canvas.create_text(w / 2, h / 2 - 25, text="SCORE",
+            fill=GRAY, font=('Helvetica', 22, 'bold'))
+        canvas.create_text(w / 2, h / 2 + 25, text=data.p1['score'],
+            fill="white", font=('Helvetica', 72, 'bold'))
+    else:
+        canvas.create_text(w * 0.3, h / 2 + 25, text=data.p1['score'],
+            fill="white", font=('Helvetica', 72, 'bold'))
+        canvas.create_text(w * 0.7, h / 2 + 25, text=data.p2['score'],
+            fill="white", font=('Helvetica', 72, 'bold'))
+        if data.p2['ai']:
+            canvas.create_text(w * 0.3, h / 2 - 25, text="PLAYER SCORE",
+                fill=BLUE, font=('Helvetica', 22, 'bold'))
+            canvas.create_text(w * 0.7, h / 2 - 25, text="AI SCORE",
+                fill=RED, font=('Helvetica', 22, 'bold'))
+        else:
+            canvas.create_text(w * 0.3, h / 2 - 25, text="PLAYER 1 SCORE",
+                fill=BLUE, font=('Helvetica', 22, 'bold'))
+            canvas.create_text(w * 0.7, h / 2 - 25, text="PLAYER 2 SCORE",
+                fill=RED, font=('Helvetica', 22, 'bold'))
+
+def simulatePlayer(player, difficulty):
     global playerNum
     player['online'] = True
     player['x'], player['y'], player['z'] = 0, 0, 0
@@ -214,56 +370,41 @@ def redrawAll(canvas, data):
     # Draw background
     canvas.create_rectangle(0, 0, data.width, data.height, fill='black')
 
-    # Draw lasers
-    for laser in data.lasers:
-        laser.draw(canvas)
+    simulatePlayer(data.p1, 0)
+    simulatePlayer(data.p2, 0)
 
-    simulatePlayer(data, data.p1)
-    # simulatePlayer(data, data.p2)
-
-    # Draw models if player 1 online
-    if data.p1['online']:
+    if not data.gameStarted:
+        drawSplash(canvas, data)
+    else:
         # Draw perspective scene and game text
         drawScene(canvas, data)
         drawText(canvas, data, data.p1)
-        if data.p2['online']:
-            # Open second window
-            if not data.p2['opened']:
-                runPlayerTwo(600, 450)
-                data.p2['opened'] = True
-            checkCollisions(data, data.p2)
-            # Draw player 2 lightsaber (if online)
-            data.p2['model'].draw(canvas, data.p2['x'], data.p2['y'],
-                                  data.p2['z'], c2x, c2y, 0.5)
-
-        checkCollisions(data, data.p1)
+        # Draw lasers
+        for laser in data.p1['lasers']:
+            laser.draw(canvas)
         # Draw player 1 lightsaber
         data.p1['model'].draw(canvas, data.p1['x'], data.p1['y'], data.p1['z'],
-                              c1x, c1y, 1)
-    else:
-        # Draw join game text
-        drawText(canvas, data)
+                                c1x, c1y, 1)
 
 def redrawAllTwo(canvas, data, dim):
     # Window-responsive origins for player 1 and player 2
     c1x, c1y = dim.width * 0.50, dim.height * 0.75
     c2x, c2y = dim.width * 0.50, dim.height * 0.55
-
     # Draw background
     canvas.create_rectangle(0, 0, dim.width, dim.height, fill='black')
-
-    # Draw scene
+    # Draw scene and text
     drawScene(canvas, dim)
-
+    drawText(canvas, dim, data.p2)
     # Mirror angles and draw lightsaber 1
-    data.p1['model'].draw(canvas, -data.p1['x'], data.p1['y'], -data.p1['z'],
-                          c2x, c2y, 0.5)
-
+    # data.p1['model'].draw(canvas, -data.p1['x'], data.p1['y'], -data.p1['z'],
+                          # c2x, c2y, 0.5)
+    # Draw lasers
+    for laser in data.p2['lasers']:
+        laser.draw(canvas)
     # Draw lightsaber 2
     data.p2['model'].draw(canvas, data.p2['x'], data.p2['y'], data.p2['z'],
                           c1x, c1y, 1)
-
-    drawText(canvas, dim, data.p2)
+    if data.gameOver: top.destroy()
 
 # NOTE:
 # run() functions primarily from 15-112 starter code, with several changes
@@ -271,6 +412,9 @@ def redrawAllTwo(canvas, data, dim):
 # Starter code: https://www.cs.cmu.edu/~112/notes/notes-animations-part2.html
 
 def runPlayerOne(width, height, serverMsg=None, server=None):
+    # song = "assets/theme.wav"
+    # threading.Thread(target=playFile, args=(song,)).start()
+    global titleImg
     def redrawAllWrapper(canvas, data):
         canvas.delete(ALL)
         redrawAll(canvas, data)
@@ -280,6 +424,10 @@ def runPlayerOne(width, height, serverMsg=None, server=None):
         timerFired(data)
         redrawAllWrapper(canvas, data)
         canvas.after(data.timerDelay, timerFiredWrapper, canvas, data)
+
+    def mousePressedWrapper(event, canvas, data):
+        mousePressed(event, data)
+        redrawAllWrapper(canvas, data)
 
     # Check if user changes window size
     def configureWrapper(event, canvas, data):
@@ -298,11 +446,15 @@ def runPlayerOne(width, height, serverMsg=None, server=None):
     canvas = Canvas(root, bd = 0, highlightthickness = 0, width = data.width,
                     height = data.height)
     canvas.pack(fill=BOTH, expand=1)
+    root.bind("<Button-1>", lambda event:
+                            mousePressedWrapper(event, canvas, data))
     canvas.bind("<Configure>", lambda event:
                                configureWrapper(event, canvas, data))
     timerFiredWrapper(canvas, data)
+    titleImg = PhotoImage(file="assets/title.gif")
     root.mainloop()
     print("-- Player 1 closed --")
+    quit()
 
 def runPlayerTwo(width, height):
     # Create second window with a second data set that only stores instance
@@ -322,10 +474,11 @@ def runPlayerTwo(width, height):
         redrawAllWrapper(canvas, data, dim)
 
     def timerFiredWrapper(canvas, data, dim):
-        timerFired(data)
+        timerFired(data, dim)
         redrawAllWrapper(canvas, data, dim)
         canvas.after(data.timerDelay, timerFiredWrapper, canvas, data, dim)
 
+    global top
     top = Toplevel()
     top.title("Lightsaber Pong – Player 2")
     # Create a canvas without any margin or border
@@ -335,6 +488,5 @@ def runPlayerTwo(width, height):
     canvas.bind("<Configure>", lambda event:
                                configureWrapper(event, canvas, dim))
     timerFiredWrapper(canvas, data, dim)
-    print("-- Player 2 closed --")
 
 runPlayerOne(800, 600)
