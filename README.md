@@ -1,8 +1,5 @@
-################# 15-112 Term Project ###############
-##                                                 ##
-##                  LIGHTSABER PONG                ##
-##                                                 ##
-#####################################################
+# LIGHTSABER PONG
+## 15-112 Term Project
 
 # Description
 A game in which you can utilize your phone's gyroscope to reflect a 3D
