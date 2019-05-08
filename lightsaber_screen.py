@@ -1,11 +1,12 @@
-import socket, random, threading, math, copy, pyaudio, wave
+import socket, random, threading, math, copy, pyaudio, wave, time
+import numpy as np
 from tkinter import *
 from queue import Queue
 from lightsaber import Lightsaber
 from laser import Laser
 
 HOST = socket.gethostbyname(socket.gethostname())
-PORT = 15270
+PORT = 15252
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM) 
 server.bind((HOST,PORT))
@@ -25,6 +26,9 @@ data = Struct()
 # Store data for both players
 data.p1, data.p2 = { 'online' : False }, { 'online' : False }
 data.gameStarted, data.gameOver = False, False
+
+# DIFFICULTY: 1 - Hard, 2 - Medium, 3 - Easy, 4 - Super Easy
+data.difficulty = 1
 
 clientele     = dict()
 serverChannel = Queue(100)
@@ -68,15 +72,12 @@ def serverThread(clientele, serverChannel):
         for cID in clientele:
             if cID != player:
                 msg = ''.join(msg)
-                # clientele[cID].send(msg.encode())
-                # print("> Sent to %s:" % cID, msg)
         serverChannel.task_done()
 
 def acceptConnections():
     global playerNum
     while True:
         client, address = server.accept()
-        # myID is the key to the client in the clientele dictionary
         myID = names[playerNum]
         print(myID, playerNum)
         for cID in clientele:
@@ -99,21 +100,21 @@ def acceptConnections():
 threading.Thread(target=serverThread, args=(clientele, serverChannel)).start()
 threading.Thread(target=acceptConnections).start()
 
-##########################
-#####    Graphics    #####
-##########################
+#########################
+# ----> Graphics  <---- #
+#########################
 
 titleImg = ""
 
 def init(data):
-    gameTime = 20 # seconds
+    gameTime = 30 # seconds
     # Initialize player 1
     data.p1['model'] = Lightsaber(BLUE)
     data.p1['score'], data.p1['time'] = 0, gameTime
     data.p1['cx'], data.p1['cy'] = data.width * 0.50, data.height * 0.75
 
     # Load saved high score for training mode
-    hiscore = open('hiscore.txt', 'r')
+    hiscore = open('assets/hiscore.txt', 'r')
     data.p1['hiscore'] = int(hiscore.read())
     hiscore.close()
 
@@ -125,6 +126,8 @@ def init(data):
     # Store in-game lasers
     data.p1['lasers'], data.p2['lasers'] = [], []
     data.counter = 0
+
+    threading.Thread(target=playFile, args=("theme",)).start()
 
 def configure(event, data):
     # Check window re-sizing
@@ -150,70 +153,70 @@ def mousePressed(event, data):
             data.p2['ai'] = False
             startGame(data, "2-Player")
 
-def keyPressed(event, data): pass
-
 def startGame(data, mode):
+    # threading.Thread(target=playFile, args=("saberOn",)).start()
     data.gameStarted = True
     if mode == "AI":
         data.p2['online'] = True
         data.p2['x'], data.p2['y'], data.p2['z'] = 0, 0, 0
+        data.aiSteps = []
         runPlayerTwo(600, 450)
     elif mode == "2-Player":
         runPlayerTwo(800, 600)
 
-def timerFired(data):
+def timerFired(data, dim = None):
     if data.gameStarted:
         data.counter += 1
         if data.counter % 20 == 0:
             data.p1['lasers'].append(Laser(data.width, data.height, X_OFFSET,
                                      data.height * 0.2, data.height * 0.4))
-        for laser in data.p1['lasers']:
-            laser.move()
+            if data.p2['online'] and dim != None:
+                data.p2['lasers'].append(Laser(dim.width, dim.height, X_OFFSET,
+                                        dim.height * 0.2, dim.height * 0.4))
+        if dim == None:
+            for laser in data.p1['lasers']:
+                laser.move()
+            checkCollisions(data, data.p1)
+        elif dim != None:
+            for laser in data.p2['lasers']:
+                laser.move()
+            checkCollisions(dim, data.p2)
         if data.counter % 10 == 0:
-            data.p1['time'] -= 1
-        checkCollisions(data, data.p1)
+            if dim == None:
+                data.p1['time'] -= 1
+            elif dim != None:
+                data.p2['time'] -= 1
         if data.p1['time'] == 0:
             data.gameStarted = False
             data.gameOver = True
-
-def timerFiredTwo(data, dim):
-    if data.gameStarted:
-        if data.counter % 20 == 0:
-            data.p2['lasers'].append(Laser(dim.width, dim.height, X_OFFSET,
-                                     dim.height * 0.2, dim.height * 0.4))
-            if data.p2['ai']:
-                addNewSteps(data, data.p2['lasers'][len(data.p2['lasers']) - 1])
-        for laser in data.p2['lasers']:
-            laser.move()
-        if data.counter % 10 == 0:
-            data.p2['time'] -= 1
-        checkCollisions(dim, data.p2)
-        if data.p2['ai']:
+        if data.p2['online'] and data.p2['ai']:
             runAI(data, dim)
 
-def addNewSteps(data, laser):
-    pass
-    # print(laser)
-
 def runAI(data, dim):
-    pass
-    # lasers = copy.deepcopy(data.p2['lasers'])
-    # for i in range(len(lasers)):
-    #     if lasers[i] not in data.p2['aiLasers']:
-    #         botY = lasers[i].points[2][1]
-    #         medX = lasers[i].getFinalPos()
-    #         currAngle = math.cos(math.radians(data.p2['x'] + 90))
-    #         finalAngle = 90
-    #         for decAngle in range(0, 18000, 1):
-    #             angle = decAngle / 100
-    #             if (10 < angle < 85) or (95 < angle < 170):
-    #                 correctAngles = []
-    #                 if math.cos(math.radians(angle)) / medX > 0:
-    #                     correctAngles.append(angle)
-    #                 if len(correctAngles) > 0:
-    #                     finalAngle = max(correctAngles)
-    #         data.p2['x'] = finalAngle - 90
-    #         data.p2['aiLasers'].append(lasers[i])
+    # If there are remaining steps to use, play them
+    if len(data.aiSteps) > 0:
+        data.p2['x'] = data.aiSteps.pop(0)
+    lasers = copy.deepcopy(data.p2['lasers'])
+    for i in range(len(lasers)):
+        if lasers[i] not in data.p2['aiLasers']:
+            medX = lasers[i].getFinalPos()
+            currAngle = math.cos(math.radians(data.p2['x'] + 90))
+            finalAngle = 90
+            # Get the angle necessary to hit the upcoming laser
+            for decAngle in range(0, 18000, 1):
+                angle = decAngle / 100
+                if (10 < angle < 85) or (95 < angle < 170):
+                    correctAngles = []
+                    if math.cos(math.radians(angle)) / medX > 0:
+                        correctAngles.append(angle)
+                    if len(correctAngles) > 0:
+                        finalAngle = max(correctAngles)
+            finalAngle -= 90
+            # Depending on difficulty, add gradual steps for AI to get to
+            # that final angle
+            data.aiSteps.extend(np.linspace(currAngle, finalAngle,
+                                data.difficulty * 12))
+            data.p2['aiLasers'].append(lasers[i])
 
 def checkCollisions(data, player):
     lasers = copy.deepcopy(player['lasers'])
@@ -228,6 +231,10 @@ def checkCollisions(data, player):
             if medX != 0:
                 collided = angle / medX > 0
                 if collided:
+                    # Play sound for every hit – lags came (due to threads)
+                    hitSound = random.randint(1, 2)
+                    threading.Thread(target=playFile,
+                    args=("sound%d" % hitSound,)).start()
                     lasers[i].speed = -lasers[i].speed
                     player['score'] += 1
         width = abs(lasers[i].points[3][0] - lasers[i].points[2][0])
@@ -237,7 +244,7 @@ def checkCollisions(data, player):
 
 def playFile(audioFile):
     # Play file using PyAudio
-    wav = wave.open(audioFile, 'rb')
+    wav = wave.open("assets/%s.wav" % audioFile, 'rb')
     p = pyaudio.PyAudio()
     # Create a stream with pyAudio settings
     stream = p.open(format = p.get_format_from_width(wav.getsampwidth()),
@@ -253,16 +260,11 @@ def playFile(audioFile):
     p.terminate() 
 
 def roundRectangle(canvas, x1, y1, x2, y2, r, **kwargs):
-    points = [x1+r, y1, x1+r, y1,
-              x2-r, y1, x2-r, y1,
-              x2, y1, x2, y1+r,
-              x2, y1+r, x2, y2-r,
-              x2, y2-r, x2, y2,
-              x2-r, y2, x2-r, y2,
-              x1+r, y2, x1+r, y2,
-              x1, y2, x1, y2-r,
-              x1, y2-r, x1, y1+r,
-              x1, y1+r, x1, y1]
+    points = [x1+r, y1, x1+r, y1, x2-r, y1, x2-r, y1,
+              x2, y1, x2, y1+r, x2, y1+r, x2, y2-r,
+              x2, y2-r, x2, y2, x2-r, y2, x2-r, y2,
+              x1+r, y2, x1+r, y2, x1, y2, x1, y2-r,
+              x1, y2-r, x1, y1+r, x1, y1+r, x1, y1]
     return canvas.create_polygon(points, **kwargs, smooth=True)
 
 def drawScene(canvas, data):
@@ -289,8 +291,10 @@ def drawText(canvas, data, player = None):
         if hiscore >= score:
             scoreFill = "white"
             scoreText = "SCORE"
-            canvas.create_text(60, 80, text="HI SCORE", fill=GRAY, anchor=CENTER, font=('Helvetica', 14, 'bold'))
-            canvas.create_text(60, 105, text=hiscore, fill=BLUE, anchor=CENTER, font=('Helvetica', 32, 'bold'))
+            canvas.create_text(60, 80, text="HI SCORE", fill=GRAY,
+                               anchor=CENTER, font=('Helvetica', 14, 'bold'))
+            canvas.create_text(60, 105, text=hiscore, fill=BLUE, anchor=CENTER,
+                               font=('Helvetica', 32, 'bold'))
         else:
             scoreText = "HI SCORE"
             scoreFill = BLUE
@@ -298,11 +302,15 @@ def drawText(canvas, data, player = None):
         scoreFill = "white"
         scoreText = "SCORE"
     # Draw score
-    canvas.create_text(60, 20, text=scoreText, fill=GRAY, anchor=CENTER, font=('Helvetica', 14, 'bold'))
-    canvas.create_text(60, 45, text=score, fill=scoreFill, anchor=CENTER, font=('Helvetica', 32, 'bold'))
+    canvas.create_text(60, 20, text=scoreText, fill=GRAY, anchor=CENTER,
+                       font=('Helvetica', 14, 'bold'))
+    canvas.create_text(60, 45, text=score, fill=scoreFill, anchor=CENTER,
+                       font=('Helvetica', 32, 'bold'))
     # Draw time
-    canvas.create_text(data.width - 60, 20, text="TIME", fill=GRAY, anchor=CENTER, font=('Helvetica', 14, 'bold'))
-    canvas.create_text(data.width - 60, 45, text=time, fill="white", anchor=CENTER, font=('Helvetica', 32, 'bold'))
+    canvas.create_text(data.width - 60, 20, text="TIME", fill=GRAY,
+                       anchor=CENTER, font=('Helvetica', 14, 'bold'))
+    canvas.create_text(data.width - 60, 45, text=time, fill="white",
+                       anchor=CENTER, font=('Helvetica', 32, 'bold'))
 
 def drawSplash(canvas, data):
     global titleImg
@@ -369,7 +377,7 @@ def drawGameOver(canvas, data):
     w, h = data.width, data.height
     if not data.p2['online']:
         if data.p1['score'] > data.p1['hiscore']:
-            hiscore = open('hiscore.txt', 'w')
+            hiscore = open('assets/hiscore.txt', 'w')
             hiscore.write(str(data.p1['score']))
             hiscore.close()
             canvas.create_text(w / 2, h / 2 - 25, text="HI SCORE!",
@@ -394,14 +402,17 @@ def drawGameOver(canvas, data):
                 fill=BLUE, font=('Helvetica', 22, 'bold'))
             canvas.create_text(w * 0.7, h / 2 - 25, text="PLAYER 2 SCORE",
                 fill=RED, font=('Helvetica', 22, 'bold'))
-
-def simulatePlayer(player, difficulty):
-    global playerNum
-    player['online'] = True
-    player['x'], player['y'], player['z'] = 0, 0, 0
-    player['x'] += random.randint(-20, 20)
-    player['z'] += random.randint(-20, 20)
-    playerNum = 1
+        if data.p1['score'] > data.p2['score']:
+            status = "PLAYER 1 WINS!"
+            statusCo = BLUE
+        elif data.p1['score'] < data.p2['score']:
+            status = "PLAYER 2 WINS!"
+            statusCO = RED
+        elif data.p1['score'] == data.p2['score']:
+            status = "TIED MATCH!"
+            statusCO = GRAY
+        canvas.create_text(w * 0.5, h * 0.75, text=status, fill=statusCo,
+                           font=('Helvetica', 32, 'bold'))
 
 def redrawAll(canvas, data):
     # Window-responsive origins for player 1 and player 2
@@ -411,14 +422,16 @@ def redrawAll(canvas, data):
     # Draw background
     canvas.create_rectangle(0, 0, data.width, data.height, fill='black')
 
-    # simulatePlayer(data.p1, 0)
-
     if not data.gameStarted:
         drawSplash(canvas, data)
     else:
         # Draw perspective scene and game text
         drawScene(canvas, data)
         drawText(canvas, data, data.p1)
+        if data.p2['online']:
+            # Mirror angles and draw lightsaber 2
+            data.p2['model'].draw(canvas, -data.p2['x'], data.p2['y'],
+                                -data.p2['z'], c2x, c2y, 0.5)
         # Draw lasers
         for laser in data.p1['lasers']:
             laser.draw(canvas)
@@ -436,8 +449,8 @@ def redrawAllTwo(canvas, data, dim):
     drawScene(canvas, dim)
     drawText(canvas, dim, data.p2)
     # Mirror angles and draw lightsaber 1
-    # data.p1['model'].draw(canvas, -data.p1['x'], data.p1['y'], -data.p1['z'],
-                          # c2x, c2y, 0.5)
+    data.p1['model'].draw(canvas, -data.p1['x'], data.p1['y'], -data.p1['z'],
+                          c2x, c2y, 0.5)
     # Draw lasers
     for laser in data.p2['lasers']:
         laser.draw(canvas)
@@ -451,9 +464,7 @@ def redrawAllTwo(canvas, data, dim):
 # to account for sockets and multiple screens (using toplevel)
 # Starter code: https://www.cs.cmu.edu/~112/notes/notes-animations-part2.html
 
-def runPlayerOne(width, height, serverMsg=None, server=None):
-    # song = "assets/theme.wav"
-    # threading.Thread(target=playFile, args=(song,)).start()
+def runPlayerOne(width, height):
     global titleImg
     def redrawAllWrapper(canvas, data):
         canvas.delete(ALL)
@@ -474,8 +485,6 @@ def runPlayerOne(width, height, serverMsg=None, server=None):
         configure(event, data)
         redrawAllWrapper(canvas, data)
 
-    # data.server = server
-    # data.serverMsg = serverMsg
     data.width = width
     data.height = height
     data.timerDelay = 100 # Milliseconds
@@ -504,29 +513,30 @@ def runPlayerTwo(width, height):
     dim.height = height
 
     def redrawAllWrapper(canvas, data, dim):
-        canvas.delete(ALL)
-        redrawAllTwo(canvas, data, dim)
-        canvas.update()
+        canvasTwo.delete(ALL)
+        redrawAllTwo(canvasTwo, data, dim)
+        canvasTwo.update()
 
     # Check if user changes window size
     def configureWrapper(event, canvas, dim):
         configure(event, dim)
-        redrawAllWrapper(canvas, data, dim)
+        redrawAllWrapper(canvasTwo, data, dim)
 
-    def timerFiredWrapper(canvas, data, dim):
-        timerFiredTwo(data, dim)
+    def timerFiredTwoWrapper(canvas, data, dim):
+        timerFired(data, dim)
         redrawAllWrapper(canvas, data, dim)
-        canvas.after(data.timerDelay, timerFiredWrapper, canvas, data, dim)
+        canvasTwo.after(data.timerDelay, timerFiredTwoWrapper,
+                        canvasTwo, data, dim)
 
     global top
     top = Toplevel()
     top.title("Lightsaber Pong – Player 2")
     # Create a canvas without any margin or border
-    canvas = Canvas(top, bd = 0, highlightthickness = 0, width = dim.width,
+    canvasTwo = Canvas(top, bd = 0, highlightthickness = 0, width = dim.width,
                     height = dim.height)
-    canvas.pack(fill=BOTH, expand=1)
-    canvas.bind("<Configure>", lambda event:
-                               configureWrapper(event, canvas, dim))
-    timerFiredWrapper(canvas, data, dim)
+    canvasTwo.pack(fill=BOTH, expand=1)
+    canvasTwo.bind("<Configure>", lambda event:
+                               configureWrapper(event, canvasTwo, dim))
+    timerFiredTwoWrapper(canvasTwo, data, dim)
 
 runPlayerOne(800, 600)

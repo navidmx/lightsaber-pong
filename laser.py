@@ -19,8 +19,8 @@ class Laser(object):
         # Get slope of each laser's sides by comparing starting/ending point
         self.endLX = ((topLX - (width * offset)) / startW) * (width * 0.5) + width * 0.25
         self.endRX = ((topRX - (width * offset)) / startW) * (width * 0.5) + width * 0.25
-        self.slopeL = (topLY - endY) / (topLX - self.endLX)
-        self.slopeR = (topRY - endY) / (topRX - self.endRX)
+        self.slopeL = (topLY - endY) / ((topLX - self.endLX) + 0.01)
+        self.slopeR = (topRY - endY) / ((topRX - self.endRX) + 0.01)
 
         # Create bottom left/right coordinates of laser with slope/height
         botLX, botLY = topLX + (self.h / self.slopeL), topLY + self.h

@@ -1,5 +1,5 @@
 import numpy as np
-from matrix import CustomEngine
+from engine import CustomEngine
 
 GRAY = '#A9A9A9'
 DARK_GRAY = '#696969'

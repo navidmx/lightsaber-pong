@@ -67,5 +67,11 @@ MODULE LIST
 TP 2 UPDATE
 ##############################
 
-No significant design changes made, kept closely to the outline from TP 1. Added Numpy as a module to perform matrix operations.
+No significant design changes made, kept closely to the outline from TP 1.
+Added Numpy as a module to perform matrix operations.
 
+##############################
+TP 3 UPDATE
+##############################
+
+No significant design changes made, added PyAudio as a module for game audio.
