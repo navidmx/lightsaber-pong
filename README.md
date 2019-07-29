@@ -1,5 +1,5 @@
 # LIGHTSABER PONG
-### 15-112 Term Project, Spring 2019 (https://www.youtube.com/watch?v=TseriJAoMpQ)
+### 15-112 Term Project, Spring 2019 (Demo: [YouTube](https://www.youtube.com/watch?v=TseriJAoMpQ))
 
 # Description
 A game in which you can utilize your phone's gyroscope to reflect a 3D
@@ -16,7 +16,7 @@ against another player to deflect as many lasers as possible.
 ## For one player:
 6. Done! Select either the "Practice" or "Compete (with AI)" modes
 ## For two player:
-6. Send "lightsaber_mobile.py" to another phone, repeat Step 4 and 5
+6. Send `lightsaber_mobile.py` to another phone, repeat Step 4 and 5
 7. Done! Select "Compete" mode
 
 # Libraries (to install)
