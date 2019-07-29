@@ -1,5 +1,5 @@
 # LIGHTSABER PONG
-### 15-112 Term Project, Spring 2019 (Demo: [YouTube](https://www.youtube.com/watch?v=TseriJAoMpQ))
+### 15-112 Term Project, Spring 2019 ([Demo](https://www.youtube.com/watch?v=TseriJAoMpQ))
 
 # Description
 A game in which you can utilize your phone's gyroscope to reflect a 3D
