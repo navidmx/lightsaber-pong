@@ -8,10 +8,10 @@ against another player to deflect as many lasers as possible.
 
 # Running the game
 1. Download all the files on the screen you wish to display the game
-2. Send "lightsaber_mobile.py" to a phone with an IDE (ex: "Pythonista" on iOS)
-3. Run "lightsaber_screen.py" on your screen and note the given IP and port
-4. Set HOST/PORT (lines 9, 10) to the given IP/port in "lightsaber_mobile.py"
-5. Run "lightsaber_mobile.py" on your phone
+2. Send `lightsaber_mobile.py` to a phone with an IDE (ex: "Pythonista" on iOS)
+3. Run `lightsaber_screen.py` on your screen and note the given IP and port
+4. Set `HOST`/`PORT` (lines 9, 10) to the given IP/port in `lightsaber_mobile.py`
+5. Run `lightsaber_mobile.py` on your phone
 
 ## For one player:
 6. Done! Select either the "Practice" or "Compete (with AI)" modes
